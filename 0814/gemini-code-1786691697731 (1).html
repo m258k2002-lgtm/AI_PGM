@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>약 먹었나? - 자동완성 & 스마트 성분 매칭 복약기</title>
+  <!-- Tailwind CSS & FontAwesome -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <!-- 폭죽 축하 효과 (canvas-confetti) CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col items-center p-3 sm:p-6">
+
+  <div class="w-full max-w-lg bg-white rounded-3xl shadow-xl border border-slate-200/80 p-5 sm:p-7 space-y-6">
+    
+    <!-- 상단 헤더 -->
+    <header class="text-center">
+      <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-500 text-white shadow-md shadow-blue-200 mb-2">
+        <i class="fa-solid fa-pills text-xl"></i>
+      </div>
+      <h1 class="text-2xl font-black text-slate-800 tracking-tight">약 먹었나?</h1>
+      <p class="text-xs text-slate-500 mt-0.5">스마트 자동완성 검색 & 실시간 성분 안전 분석기</p>
+      <div id="currentDate" class="text-xs font-bold text-blue-600 mt-2 bg-blue-50 py-1.5 px-4 rounded-full inline-block border border-blue-100"></div>
+    </header>
+
+    <!-- 탭 전환 버튼 -->
+    <div class="flex bg-slate-100 p-1 rounded-xl gap-1">
+      <button id="tabTodayBtn" onclick="switchTab('today')" class="flex-1 py-2 rounded-lg font-bold text-xs sm:text-sm transition-all bg-white text-blue-600 shadow-sm">
+        <i class="fa-solid fa-check-circle mr-1"></i> 오늘 체크
+      </button>
+      <button id="tabCalendarBtn" onclick="switchTab('calendar')" class="flex-1 py-2 rounded-lg font-medium text-xs sm:text-sm text-slate-500 hover:text-slate-700 transition-all">
+        <i class="fa-regular fa-calendar-check mr-1"></i> 캘린더
+      </button>
+      <button id="tabRecommendBtn" onclick="switchTab('recommend')" class="flex-1 py-2 rounded-lg font-medium text-xs sm:text-sm text-slate-500 hover:text-slate-700 transition-all">
+        <i class="fa-solid fa-shield-heart mr-1 text-rose-500"></i> 안전 맞춤 추천
+      </button>
+    </div>
+
+    <!-- 목표 달성 스트릭 배너 -->
+    <div class="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-pink-500/10 border border-amber-200/60 rounded-2xl p-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+          🔥
+        </div>
+        <div>
+          <div class="text-xs font-bold text-slate-700">
+            연속 복용 <span id="streakCount" class="text-amber-600 font-extrabold text-sm">0</span>일째 달성 중!
+          </div>
+          <div class="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+            목표: 
+            <select id="targetDaysSelect" onchange="updateTargetDays(this.value)" class="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[11px] font-bold text-slate-700 focus:outline-none">
+              <option value="3">3일 연속</option>
+              <option value="7" selected>7일 연속</option>
+              <option value="14">14일 연속</option>
+              <option value="30">30일 연속</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="targetBadge" class="text-xs font-extrabold px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg">
+        D-7
+      </div>
+    </div>
+
+    <!-- TAB 1: 오늘 복용 체크 뷰 -->
+    <div id="viewToday" class="space-y-5">
+      
+      <!-- 🔍 스마트 자동완성 약 추가 폼 -->
+      <form id="addPillForm" class="space-y-2 relative" autocomplete="off">
+        <div class="flex gap-2 relative">
+          <div class="flex-1 relative">
+            <input type="text" id="pillName" placeholder="약/영양제 이름 검색 (예: 비타민, 오메가, 칼슘)" required
+                   oninput="handleAutocomplete(this.value)"
+                   onkeydown="handleKeyNavigation(event)"
+                   class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50">
+            
+            <!-- 🔽 네이버 스타일 자동완성 드롭다운 목록 -->
+            <div id="autocompleteDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto divide-y divide-slate-100">
+              <!-- JS로 동적 생성 -->
+            </div>
+          </div>
+
+          <select id="pillTime" class="px-3 py-2 text-sm border border-slate-200 rounded-xl bg-slate-50/50 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shrink-0">
+            <option value="아침">아침</option>
+            <option value="점심">점심</option>
+            <option value="저녁">저녁</option>
+            <option value="취침전">취침전</option>
+            <option value="상시">상시</option>
+          </select>
+        </div>
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-sm transition shadow-md shadow-blue-200 flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-plus text-xs"></i> 복약 목록에 추가
+        </button>
+      </form>
+
+      <!-- 진행률 바 -->
+      <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+        <div class="flex justify-between text-xs font-bold text-slate-600 mb-2">
+          <span>오늘 달성도</span>
+          <span id="progressText">0 / 0 완료 (0%)</span>
+        </div>
+        <div class="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+          <div id="progressBar" class="bg-gradient-to-r from-blue-500 to-indigo-500 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- 약 리스트 -->
+      <div class="space-y-2.5" id="pillList"></div>
+
+      <!-- 하단 제어 -->
+      <div class="pt-3 border-t border-slate-100 flex justify-between items-center gap-2">
+        <button onclick="switchTab('recommend')" class="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1">
+          <i class="fa-solid fa-shield-heart"></i> 약물 안전 분석 보기
+        </button>
+        <button onclick="resetTodayStatus(true)" class="text-xs font-semibold text-rose-500 hover:text-rose-600">
+          <i class="fa-solid fa-rotate-right"></i> 오늘 체크 초기화
+        </button>
+      </div>
+    </div>
+
+    <!-- TAB 2: 캘린더 뷰 -->
+    <div id="viewCalendar" class="hidden space-y-4">
+      <div class="flex items-center justify-between px-1">
+        <h2 id="calendarMonthYear" class="text-base font-bold text-slate-800"></h2>
+        <div class="flex gap-1">
+          <button onclick="changeMonth(-1)" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-600 flex items-center justify-center">
+            <i class="fa-solid fa-chevron-left text-xs"></i>
+          </button>
+          <button onclick="changeMonth(1)" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-600 flex items-center justify-center">
+            <i class="fa-solid fa-chevron-right text-xs"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-400 pb-1 border-b border-slate-100">
+        <span class="text-rose-400">일</span>
+        <span>월</span>
+        <span>화</span>
+        <span>수</span>
+        <span>목</span>
+        <span>금</span>
+        <span class="text-blue-500">토</span>
+      </div>
+
+      <div id="calendarGrid" class="grid grid-cols-7 gap-1.5"></div>
+
+      <div class="bg-blue-50/70 rounded-xl p-3 text-xs text-blue-800 flex items-center gap-2">
+        <i class="fa-solid fa-circle-info text-blue-500"></i>
+        <span>초록색 배지는 해당 날짜의 복약을 100% 완료한 날입니다.</span>
+      </div>
+    </div>
+
+    <!-- TAB 3: 안전 맞춤 영양제 & 24종 DB 검색 가이드 -->
+    <div id="viewRecommend" class="hidden space-y-4">
+      
+      <!-- 🔍 실시간 약물 검색창 -->
+      <div class="relative">
+        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+        <input type="text" id="recommendSearchInput" oninput="handleSearchInput(this.value)" placeholder="약물/영양제 검색 (예: 아연, 아르기닌, 쏘팔메토, 마그네슘)" 
+               class="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+          <i class="fa-solid fa-circle-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <!-- 12종 정밀 건강 상태 & 계획 필터 -->
+      <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-200/80 pb-2">
+          <label class="text-xs font-black text-slate-800 flex items-center gap-1.5">
+            <i class="fa-solid fa-user-shield text-blue-600"></i> 나의 건강 상태 & 계획
+          </label>
+          <div class="flex items-center gap-2">
+            <span id="selectedConditionCount" class="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">0개 선택됨</span>
+            <button onclick="clearAllConditions()" class="text-[11px] font-bold text-slate-400 hover:text-rose-500 transition flex items-center gap-0.5 px-1.5 py-0.5 rounded-md hover:bg-rose-50">
+              <i class="fa-solid fa-rotate-left text-[10px]"></i> 전체 해제
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <label class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200/80 cursor-pointer hover:border-rose-300">
+            <input type="checkbox" value="pregnant" onchange="toggleCondition(this)" class="condition-check rounded text-rose-600 focus:ring-rose-500">
+            <span class="text-[11px] font-bold text-rose-600">🤰 임신 / 수유 / 준비</span>
+          </label>
+          
+          <label class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200/80 cursor-pointer hover:border-red-300">
+            <input type="checkbox" value="donor" onchange="toggleCondition(this)" class="condition-check rounded text-red-600 focus:ring-red-500">
+            <span class="text-[11px] font-bold text-red-600">🩸 헌혈 계획 중</span>
+          </label>
+
+          <label class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200/80 cursor-pointer hover:border-amber-300">
+            <input type="checkbox" value="surgery" onchange="toggleCondition(this)" class="condition-check rounded text-amber-600 focus:ring-amber-500">
+            <span class="text-[11px] font-bold text-amber-700">🔪 수술/발치 예정</span>
+          </label>
+
+          <label class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200/80 cursor-pointer hover:border-blue-300">
+            <input type="checkbox" value="blood" onchange="toggleCondition(this)" class="condition-check rounded text-blue-600">
+            <span class="text-[11px] font-semibold text-slate-700">💊 항응고제/아스피린</span>
+          </label>
+
+          <label class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200/80 cursor-pointer hover:border-blue-300">
+            <input type="checkbox" value="hypertension" onchange="toggleCondition(this)" class="condition-check rounded text-blue-600">
+            <span class="text-[11px] font-semibold text-slate-700">🩺 고혈압 / 심혈관</span>
+          </label>
+
+          <label class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200/80 cursor-pointer hover:border-blue-300">
+            <input type="checkbox" value="diabetes" onchange="toggleCondition(this)" class="condition-check rounded text-blue-600">
+            <span class="text-[11px] font-semibold text-slate-700">🍬 당뇨병 / 혈당 관리</span>
+          </label>
+
+          <label class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200/80 cursor-pointer hover:border-blue-300">
+            <input type="checkbox" value="kidney" onchange="toggleCondition(this)" class="condition-check rounded text-blue-600">
+            <span class="text-[11px] font-semibold text-slate-700">🧬 신장(콩팥) 질환</span>
+          </label>
+
+          <label class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200/80 cursor-pointer hover:border-blue-300">
+            <input type="checkbox" value="liver" onchange="toggleCondition(this)" class="condition-check rounded text-blue-600">
+            <span class="text-[11px] font-semibold text-slate-700">🍺 잦은 음주 / 간 질환</span>
+          </label>
+
+          <label class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200/80 cursor-pointer hover:border-blue-300">
+            <input type="checkbox" value="thyroid" onchange="toggleCondition(this)" class="condition-check rounded text-blue-600">
+            <span class="text-[11px] font-semibold text-slate-700">🦋 갑상선 질환</span>
+          </label>
+
+          <label class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200/80 cursor-pointer hover:border-blue-300">
+            <input type="checkbox" value="stomach" onchange="toggleCondition(this)" class="condition-check rounded text-blue-600">
+            <span class="text-[11px] font-semibold text-slate-700">🔥 위장장애 / 속쓰림</span>
+          </label>
+
+          <label class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200/80 cursor-pointer hover:border-blue-300">
+            <input type="checkbox" value="seafood" onchange="toggleCondition(this)" class="condition-check rounded text-blue-600">
+            <span class="text-[11px] font-semibold text-slate-700">🦐 해산물 / 갑각류</span>
+          </label>
+
+          <label class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200/80 cursor-pointer hover:border-blue-300">
+            <input type="checkbox" value="soy" onchange="toggleCondition(this)" class="condition-check rounded text-blue-600">
+            <span class="text-[11px] font-semibold text-slate-700">🌱 대두(콩) 알레르기</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 연령대 탭 -->
+      <div id="ageFilterSection" class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 flex flex-col gap-2">
+        <label class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+          <i class="fa-solid fa-user text-blue-500"></i> 연령대별 맞춤 목록:
+        </label>
+        <div class="grid grid-cols-4 gap-1.5" id="ageGroupTabs">
+          <button onclick="selectAgeGroup('teens')" id="ageBtn_teens" class="py-1.5 text-xs font-bold rounded-lg bg-slate-200 text-slate-700">10대</button>
+          <button onclick="selectAgeGroup('young')" id="ageBtn_young" class="py-1.5 text-xs font-bold rounded-lg bg-blue-600 text-white shadow-sm">20·30대</button>
+          <button onclick="selectAgeGroup('middle')" id="ageBtn_middle" class="py-1.5 text-xs font-bold rounded-lg bg-slate-200 text-slate-700">40·50대</button>
+          <button onclick="selectAgeGroup('senior')" id="ageBtn_senior" class="py-1.5 text-xs font-bold rounded-lg bg-slate-200 text-slate-700">60대 이상</button>
+        </div>
+      </div>
+
+      <div id="ageGroupDescription" class="text-xs text-slate-500 px-1 font-medium"></div>
+
+      <!-- 추천 및 검색 결과 목록 -->
+      <div id="recommendList" class="space-y-3"></div>
+    </div>
+
+  </div>
+
+  <!-- 목표 달성 축하 팝업 모달 -->
+  <div id="congratsModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl transform transition-all scale-95 duration-200 space-y-4">
+      <div class="text-6xl animate-bounce">👏🎉</div>
+      <h3 class="text-2xl font-black text-slate-800">대단해요! 목표 달성!</h3>
+      <p id="congratsMessage" class="text-sm text-slate-600 leading-relaxed">
+        설정하신 복약 목표 일수를 완벽하게 채우셨습니다!<br>건강을 위한 꾸준한 실천에 큰 박수를 보냅니다!
+      </p>
+      <button onclick="closeCongratsModal()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-2xl shadow-lg shadow-blue-300 transition">
+        기분 좋게 계속하기
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'daily_pills_data_v11';
+    const HISTORY_KEY = 'daily_pills_history_v11';
+    const TARGET_DAYS_KEY = 'daily_pills_target_days_v11';
+    const LAST_ACTIVE_DATE_KEY = 'daily_pills_last_active_date_v11';
+    const USER_CONDITIONS_KEY = 'daily_pills_user_conditions_v11';
+
+    let pills = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    let history = JSON.parse(localStorage.getItem(HISTORY_KEY)) || {};
+    let targetDays = parseInt(localStorage.getItem(TARGET_DAYS_KEY)) || 7;
+    let userConditions = JSON.parse(localStorage.getItem(USER_CONDITIONS_KEY)) || [];
+    let calendarDate = new Date();
+    let currentAgeGroup = 'young';
+    let searchQuery = '';
+    let activeDropdownIndex = -1;
+
+    // 통합 약물 & 영양제 데이터베이스 (24종)
+    const RECOMMEND_DATA = {
+      teens: {
+        title: "10대 (청소년 & 수험생)",
+        desc: "성장 발육, 뼈 건강, 장시간 학습에 따른 눈 피로 및 학업 스트레스 완화가 핵심입니다.",
+        items: [
+          { 
+            name: "비타민 D & 칼슘", 
+            time: "아침", 
+            tag: "성장·골격", 
+            desc: "실내 학습이 많은 학생의 뼈 성장 및 면역에 필수",
+            bloodDonation: "즉시 가능",
+            pregnancy: "안전 (일일 권장량 준수)",
+            cautions: [
+              { type: 'stomach', level: 'warn', msg: '공복 섭취 시 속쓰림을 유발할 수 있으므로 식후 복용 권장' },
+              { type: 'kidney', level: 'warn', msg: '신장 결석 병력이 있거나 신부전 시 고칼슘혈증 주의' },
+              { type: 'thyroid', level: 'warn', msg: '갑상선 호르몬제 복용 시 칼슘이 흡수를 방해하므로 최소 4시간 간격 유지' }
+            ]
+          },
+          { 
+            name: "루테인", 
+            time: "점심", 
+            tag: "눈 피로 개선", 
+            desc: "인강 시청, 스마트폰 사용으로 인한 눈 피로 보호",
+            bloodDonation: "즉시 가능",
+            pregnancy: "주의 (전문의 상담 권장)",
+            cautions: [
+              { type: 'soy', level: 'forbidden', msg: '대두 레시틴 유래 캡슐 제형이 많으므로 대두 알레르기 환자 복용 금지' },
+              { type: 'liver', level: 'warn', msg: '과다 섭취 시 피부 황변 및 간 부담 가능성 주의' }
+            ]
+          },
+          { 
+            name: "유산균 (프로바이오틱스)", 
+            time: "아침", 
+            tag: "장 건강·면역", 
+            desc: "아침 공복에 복용하여 장 건강과 컨디션 유지",
+            bloodDonation: "즉시 가능",
+            pregnancy: "안전 (임산부 변비 예방에 유익)",
+            cautions: []
+          },
+          {
+            name: "아연 (Zinc)",
+            time: "점심",
+            tag: "면역·피부 피지",
+            desc: "정상적인 면역 기능 및 사춘기 여드름/피지 분비 조절",
+            bloodDonation: "즉시 가능",
+            pregnancy: "안전 (권장량 준수)",
+            cautions: [
+              { type: 'stomach', level: 'warn', msg: '공복 섭취 시 강한 구역감(메스꺼움)을 유발하므로 반드시 식후 복용' }
+            ]
+          },
+          {
+            name: "비타민 C 1000mg",
+            time: "점심",
+            tag: "항산화·피로회복",
+            desc: "유해산소로부터 세포 보호 및 철분 흡수 촉진",
+            bloodDonation: "즉시 가능",
+            pregnancy: "안전",
+            cautions: [
+              { type: 'stomach', level: 'warn', msg: '산성이 강해 위염 및 속쓰림이 있는 경우 식후 즉시 복용 권장' },
+              { type: 'kidney', level: 'warn', msg: '과다 섭취 시 요로 결석 위험 증가' }
+            ]
+          },
+          {
+            name: "L-테아닌 & 비타민 B6",
+            time: "저녁",
+            tag: "스트레스·집중력",
+            desc: "시험 스트레스로 인한 긴장 완화 및 알파파 유도",
+            bloodDonation: "즉시 가능",
+            pregnancy: "주의 (임산부 임상 부족)",
+            cautions: [
+              { type: 'pregnant', level: 'warn', msg: '임산부 및 수유부는 섭취 전 전문의 상담 필요' }
+            ]
+          }
+        ]
+      },
+      young: {
+        title: "20·30대 (청년 & 직장인)",
+        desc: "야근, 만성 피로, 잦은 회식 개선과 활력 충전, 모발/혈행 관리가 필요합니다.",
+        items: [
+          { 
+            name: "엽산 & 비타민 B군 복합체", 
+            time: "아침", 
+            tag: "에너지·피로회복", 
+            desc: "에너지 대사 촉진 및 가임기/임산부 필수 신경관 발달 지원",
+            bloodDonation: "즉시 가능",
+            pregnancy: "매우 권장 (임신 준비~초기 필수)",
+            cautions: [
+              { type: 'stomach', level: 'warn', msg: '고함량 비타민B는 공복 복용 시 메스꺼움/위장장애 유발 가능' },
+              { type: 'diabetes', level: 'warn', msg: '고함량 나이아신(B3)은 인슐린 저항성을 높여 혈당을 올릴 수 있음' }
+            ]
+          },
+          { 
+            name: "오메가3 (EPA/DHA)", 
+            time: "점심", 
+            tag: "혈행·눈 건강", 
+            desc: "혈중 중성지질 개선 및 모니터 화면 눈 피로 완화",
+            bloodDonation: "즉시 가능 (단, 혈소판 헌혈 시 3일 전 확인)",
+            pregnancy: "주의 (출산 전 EPA 성분 지혈 지연 주의, 식물성 DHA 권장)",
+            cautions: [
+              { type: 'seafood', level: 'forbidden', msg: '생선 추출물이므로 해산물 알레르기 환자 복용 금지' },
+              { type: 'blood', level: 'forbidden', msg: '항응고제/아스피린과 병용 시 출혈 위험 급증 (의사 상담 필수)' },
+              { type: 'surgery', level: 'forbidden', msg: '혈액 응고를 방해하므로 수술/발치 최소 1~2주 전 복용 중단 필수' }
+            ]
+          },
+          { 
+            name: "밀크씨슬 (실리마린)", 
+            time: "저녁", 
+            tag: "간 피로 개선", 
+            desc: "잦은 회식과 스트레스로 지친 간세포 보호",
+            bloodDonation: "즉시 가능",
+            pregnancy: "주의 (임산부/수유부 임상 부족으로 자제)",
+            cautions: [
+              { type: 'liver', level: 'warn', msg: '심각한 간경변 환자는 담즙 분비 과다로 주의' },
+              { type: 'pregnant', level: 'warn', msg: '임산부 안전성 데이터 부족으로 복용 자제' }
+            ]
+          },
+          { 
+            name: "마그네슘", 
+            time: "취침전", 
+            tag: "수면·근육 이완", 
+            desc: "스트레스 완화 및 편안한 숙면을 유도",
+            bloodDonation: "즉시 가능",
+            pregnancy: "안전 (임신 중 다리 쥐남 및 근육 경련 완화)",
+            cautions: [
+              { type: 'kidney', level: 'forbidden', msg: '신장 기능 저하 환자는 마그네슘 배출이 안 되어 고마그네슘혈증 유발 위험' },
+              { type: 'stomach', level: 'warn', msg: '과다 복용 시 묽은 변이나 설사 유발 가능' }
+            ]
+          },
+          {
+            name: "L-아르기닌",
+            time: "아침",
+            tag: "활력·혈관 확장",
+            desc: "산화질소 생성 촉진으로 운동 퍼포먼스 및 혈류 개선",
+            bloodDonation: "즉시 가능",
+            pregnancy: "주의",
+            cautions: [
+              { type: 'hypertension', level: 'warn', msg: '혈관 확장 작용으로 저혈압 또는 혈압약 복용자 주의' },
+              { type: 'stomach', level: 'warn', msg: '공복 섭취 시 설사/위장 불편 유발 가능' }
+            ]
+          },
+          {
+            name: "비오틴 & 판토텐산",
+            time: "점심",
+            tag: "모발·손발톱",
+            desc: "단백질 대사 촉진으로 풍성한 모발 및 손톱 강화 지원",
+            bloodDonation: "즉시 가능",
+            pregnancy: "안전 (적정량 준수)",
+            cautions: [
+              { type: 'thyroid', level: 'warn', msg: '고함량 비오틴은 갑상선 호르몬 검사 수치 왜곡을 일으킬 수 있어 검사 전 복용 중단 필요' }
+            ]
+          },
+          { 
+            name: "피나스테리드 (탈모 처방약)", 
+            time: "저녁", 
+            tag: "탈모 치료", 
+            desc: "남성형 탈모 치료제 (호르몬 조절)",
+            bloodDonation: "🚫 복용 중단 후 4주간 헌혈 절대 금지",
+            pregnancy: "🚫 절대 금기 (가임기 여성 분쇄 알약 접촉도 금지, 기형 유발)",
+            cautions: [
+              { type: 'pregnant', level: 'forbidden', msg: '임산부 및 가임기 여성 노출 시 태아 기형 유발 (절대 금기)' },
+              { type: 'donor', level: 'forbidden', msg: '수혈받는 임산부 위험 방지를 위해 헌혈 1개월간 전면 금지' }
+            ]
+          }
+        ]
+      },
+      middle: {
+        title: "40·50대 (중장년층)",
+        desc: "혈관 건강, 갱년기 호르몬 변화, 기초 대사량 저하 및 항산화 집중 관리가 요구됩니다.",
+        items: [
+          { 
+            name: "코엔자임 Q10 (코큐텐)", 
+            time: "아침", 
+            tag: "항산화·혈압", 
+            desc: "혈압 조절과 심혈관 활력에 도움을 주는 대표 항산화제",
+            bloodDonation: "즉시 가능",
+            pregnancy: "주의 (전문의 상담 권장)",
+            cautions: [
+              { type: 'hypertension', level: 'warn', msg: '혈압 강하제 복용 중인 경우 저혈압 유발 주의' },
+              { type: 'blood', level: 'warn', msg: '와파린 등 항응고 작용에 영향을 줄 수 있으므로 의사 상담 필요' },
+              { type: 'surgery', level: 'warn', msg: '수술 전 혈압 변동성에 영향 가능' }
+            ]
+          },
+          { 
+            name: "홍삼 농축액", 
+            time: "아침", 
+            tag: "면역·원기회복", 
+            desc: "면역력 증진 및 피로 개선 기능성",
+            bloodDonation: "즉시 가능",
+            pregnancy: "주의 (호르몬 유사 작용으로 임산부 자제)",
+            cautions: [
+              { type: 'hypertension', level: 'forbidden', msg: '혈압을 급격히 상승시킬 수 있어 고혈압 환자 복용 주의/금지' },
+              { type: 'diabetes', level: 'warn', msg: '혈당 강하제와 병용 시 저혈당 쇼크 주의' },
+              { type: 'surgery', level: 'forbidden', msg: '혈소판 응집 억제 작용으로 수술 1주 전 복용 중단 필수' }
+            ]
+          },
+          { 
+            name: "오메가3 & 비타민 D", 
+            time: "점심", 
+            tag: "혈행·골밀도", 
+            desc: "혈관 찌꺼기 관리 및 중년기 골밀도 감소 예방",
+            bloodDonation: "즉시 가능",
+            pregnancy: "안전 (의사 권장량 준수)",
+            cautions: [
+              { type: 'seafood', level: 'forbidden', msg: '생선 기름 추출물로 해산물 알레르기 환자 복용 금지' },
+              { type: 'surgery', level: 'forbidden', msg: '수술/치과 치료 전 최소 1주일 복용 중단' }
+            ]
+          },
+          { 
+            name: "루테인 지아잔틴", 
+            time: "점심", 
+            tag: "황반 색소 유지", 
+            desc: "노화로 인한 눈 침침함과 황반변성 예방",
+            bloodDonation: "즉시 가능",
+            pregnancy: "주의 (전문의 상담 권장)",
+            cautions: [
+              { type: 'soy', level: 'forbidden', msg: '대두 성분이 연질캡슐에 포함될 수 있어 대두 알레르기 환자 복용 금지' }
+            ]
+          },
+          {
+            name: "쏘팔메토 열매추출물",
+            time: "저녁",
+            tag: "남성 전립선",
+            desc: "야뇨/빈뇨 등 전립선 비대 및 배뇨 기능 개선",
+            bloodDonation: "즉시 가능",
+            pregnancy: "🚫 임산부/여성 복용 금지",
+            cautions: [
+              { type: 'pregnant', level: 'forbidden', msg: '호르몬에 영향을 미치므로 여성 및 임산부 복용 금지' },
+              { type: 'surgery', level: 'warn', msg: '출혈 위험을 증가시킬 수 있어 수술 전 중단 권장' }
+            ]
+          },
+          {
+            name: "감마리놀렌산 (보라지유)",
+            time: "저녁",
+            tag: "여성 갱년기·피부",
+            desc: "월경전 변화 및 갱년기 불편 완화, 혈중 콜레스테롤 개선",
+            bloodDonation: "즉시 가능",
+            pregnancy: "주의 (자궁 수축 유발 가능)",
+            cautions: [
+              { type: 'pregnant', level: 'forbidden', msg: '임신 중 자궁 수축 가능성으로 복용 금지' },
+              { type: 'blood', level: 'warn', msg: '항혈전제와 병용 시 출혈 경향 증가' }
+            ]
+          },
+          {
+            name: "순수 글루타치온",
+            time: "아침",
+            tag: "미백·간 해독",
+            desc: "체내 활성산소 제거 및 칙칙해진 피부 톤 개선",
+            bloodDonation: "즉시 가능",
+            pregnancy: "주의",
+            cautions: [
+              { type: 'liver', level: 'warn', msg: '특정 간질환 환자는 의사 상담 필요' }
+            ]
+          }
+        ]
+      },
+      senior: {
+        title: "60대 이상 (시니어)",
+        desc: "관절·연골 보호, 인지 기능 유지, 영양 흡수율 보완 및 노안 관리가 최우선입니다.",
+        items: [
+          { 
+            name: "MSM & 콘드로이친", 
+            time: "아침", 
+            tag: "관절·연골", 
+            desc: "무릎 및 관절 통증 완화와 연골 탄력 유지",
+            bloodDonation: "즉시 가능",
+            pregnancy: "주의 (임산부 권장하지 않음)",
+            cautions: [
+              { type: 'seafood', level: 'forbidden', msg: '게, 새우(갑각류) 및 상어 연골 유래 성분으로 해산물 알레르기 환자 복용 금지' },
+              { type: 'diabetes', level: 'warn', msg: '글루코사민/콘드로이틴 성분이 혈당을 미세하게 올릴 수 있음' },
+              { type: 'surgery', level: 'warn', msg: '항혈소판 작용 가능성으로 수술 전 의사 상담' }
+            ]
+          },
+          { 
+            name: "은행잎추출물 (징코)", 
+            time: "점심", 
+            tag: "기억력·뇌혈류", 
+            desc: "뇌 혈류 순환 개선 및 인지 기능 감퇴 예방",
+            bloodDonation: "즉시 가능",
+            pregnancy: "주의",
+            cautions: [
+              { type: 'blood', level: 'forbidden', msg: '혈액을 묽게 하므로 항응고제/아스피린 복용 시 뇌출혈/위출혈 위험 급증' },
+              { type: 'surgery', level: 'forbidden', msg: '강력한 지혈 방해 물질로 수술 2주 전 반드시 복용 중단' }
+            ]
+          },
+          { 
+            name: "칼슘 + 비타민 D3 + K2", 
+            time: "저녁", 
+            tag: "골다공증 예방", 
+            desc: "골절 예방과 뼈에 칼슘이 제대로 흡수되도록 지원",
+            bloodDonation: "즉시 가능",
+            pregnancy: "안전",
+            cautions: [
+              { type: 'stomach', level: 'warn', msg: '위산 분비가 적은 시니어는 식후 복용 권장' },
+              { type: 'kidney', level: 'warn', msg: '고칼슘혈증 및 신장 결석 위험 환자 복용 전 혈액 검사 권장' },
+              { type: 'blood', level: 'forbidden', msg: '비타민 K는 와파린(쿠마딘)의 항응고 효과를 직접 무력화시킵니다' }
+            ]
+          },
+          { 
+            name: "고함량 비타민 B12 & 엽산", 
+            time: "아침", 
+            tag: "기억력·혈액 생성", 
+            desc: "노화에 따른 뇌 신경 보호 및 인지 기능 보조",
+            bloodDonation: "즉시 가능",
+            pregnancy: "안전",
+            cautions: []
+          },
+          {
+            name: "루테인 & 아스타잔틴",
+            time: "점심",
+            tag: "눈 초점·황반",
+            desc: "망막 황반 색소 유지 및 눈 초점 조절력/피로 완화",
+            bloodDonation: "즉시 가능",
+            pregnancy: "주의",
+            cautions: [
+              { type: 'seafood', level: 'warn', msg: '미세조류/갑각류 성분 확인 필요' },
+              { type: 'soy', level: 'forbidden', msg: '대두 성분 캡슐 주의' }
+            ]
+          },
+          {
+            name: "복합 소화효소 & 낙산균",
+            time: "저녁",
+            tag: "소화흡수·장건강",
+            desc: "위산 및 췌장 소화액 분비 감소에 따른 더부룩함 해소",
+            bloodDonation: "즉시 가능",
+            pregnancy: "안전",
+            cautions: [
+              { type: 'stomach', level: 'warn', msg: '급성 위궤양 환자는 식사 도중이나 직후 복용 권장' }
+            ]
+          }
+        ]
+      }
+    };
+
+    // 전체 DB 플랫 배열 (검색 & 자동완성 전용)
+    function getAllDatabaseItems() {
+      const allItems = [];
+      const seen = new Set();
+      Object.values(RECOMMEND_DATA).forEach(group => {
+        group.items.forEach(item => {
+          if (!seen.has(item.name)) {
+            seen.add(item.name);
+            allItems.push(item);
+          }
+        });
+      });
+      return allItems;
+    }
+
+    // 🔍 스마트 약물 매칭 헬퍼 (사용자가 부분 검색하거나 직접 입력한 경우 DB에서 해당 약물 객체 추출)
+    function findBestMatchedItem(inputName) {
+      const cleanInput = inputName.replace(/\s+/g, '').toLowerCase();
+      const allItems = getAllDatabaseItems();
+
+      // 1. 정확 일치
+      let matched = allItems.find(it => it.name.replace(/\s+/g, '').toLowerCase() === cleanInput);
+      if (matched) return matched;
+
+      // 2. 입력어가 DB 약물명에 포함되어 있거나, 반대로 DB 약물명이 입력어에 포함되는 경우
+      matched = allItems.find(it => {
+        const cleanDB = it.name.replace(/\s+/g, '').toLowerCase();
+        return cleanDB.includes(cleanInput) || cleanInput.includes(cleanDB);
+      });
+      if (matched) return matched;
+
+      // 3. 주요 키워드 매칭 (예: 비타민c -> 비타민 C 1000mg, 오메가 -> 오메가3)
+      if (cleanInput.includes('비타민c')) return allItems.find(it => it.name.includes('비타민 C'));
+      if (cleanInput.includes('비타민b') || cleanInput.includes('엽산')) return allItems.find(it => it.name.includes('비타민 B군'));
+      if (cleanInput.includes('비타민d') || cleanInput.includes('칼슘')) return allItems.find(it => it.name.includes('비타민 D'));
+      if (cleanInput.includes('오메가')) return allItems.find(it => it.name.includes('오메가3'));
+      if (cleanInput.includes('탈모') || cleanInput.includes('피나')) return allItems.find(it => it.name.includes('피나스테리드'));
+      if (cleanInput.includes('마그네슘')) return allItems.find(it => it.name.includes('마그네슘'));
+      if (cleanInput.includes('유산균') || cleanInput.includes('프로바이오틱스')) return allItems.find(it => it.name.includes('유산균'));
+      if (cleanInput.includes('밀크씨슬') || cleanInput.includes('실리마린')) return allItems.find(it => it.name.includes('밀크씨슬'));
+
+      return null;
+    }
+
+    // ✨ 네이버 스타일 실시간 자동완성 핸들러
+    function handleAutocomplete(text) {
+      const query = text.trim().toLowerCase();
+      const dropdown = document.getElementById('autocompleteDropdown');
+      activeDropdownIndex = -1;
+
+      if (!query) {
+        dropdown.classList.add('hidden');
+        dropdown.innerHTML = '';
+        return;
+      }
+
+      const allItems = getAllDatabaseItems();
+      const matches = allItems.filter(item => 
+        item.name.toLowerCase().includes(query) ||
+        item.tag.toLowerCase().includes(query) ||
+        item.desc.toLowerCase().includes(query)
+      );
+
+      if (matches.length === 0) {
+        dropdown.classList.add('hidden');
+        dropdown.innerHTML = '';
+        return;
+      }
+
+      dropdown.innerHTML = '';
+      matches.forEach((item, index) => {
+        const itemRow = document.createElement('div');
+        itemRow.className = 'autocomplete-item p-3 hover:bg-blue-50/70 cursor-pointer transition flex items-center justify-between gap-2';
+        
+        // 검색어 하이라이트
+        const regex = new RegExp(`(${query})`, 'gi');
+        const highlightedName = item.name.replace(regex, '<span class="text-blue-600 font-black">$1</span>');
+
+        itemRow.innerHTML = `
+          <div class="flex-1">
+            <div class="flex items-center gap-1.5">
+              <span class="font-bold text-xs sm:text-sm text-slate-800">${highlightedName}</span>
+              <span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-semibold">${item.tag}</span>
+            </div>
+            <div class="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+              <span>🩸 헌혈: ${item.bloodDonation.slice(0, 10)}</span>
+              <span>•</span>
+              <span>🤰 ${item.pregnancy.slice(0, 10)}</span>
+            </div>
+          </div>
+          <span class="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg shrink-0">
+            ${item.time} 권장
+          </span>
+        `;
+
+        itemRow.onclick = () => selectAutocompleteItem(item);
+        dropdown.appendChild(itemRow);
+      });
+
+      dropdown.classList.remove('hidden');
+    }
+
+    // 자동완성 아이템 선택 시 인풋 채우기
+    function selectAutocompleteItem(item) {
+      document.getElementById('pillName').value = item.name;
+      document.getElementById('pillTime').value = item.time;
+      document.getElementById('autocompleteDropdown').classList.add('hidden');
+    }
+
+    // 키보드 네비게이션 지원 (위/아래 화살표, 엔터)
+    function handleKeyNavigation(e) {
+      const dropdown = document.getElementById('autocompleteDropdown');
+      const items = dropdown.querySelectorAll('.autocomplete-item');
+      if (dropdown.classList.contains('hidden') || items.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeDropdownIndex = (activeDropdownIndex + 1) % items.length;
+        updateActiveDropdown(items);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeDropdownIndex = (activeDropdownIndex - 1 + items.length) % items.length;
+        updateActiveDropdown(items);
+      } else if (e.key === 'Enter') {
+        if (activeDropdownIndex >= 0 && activeDropdownIndex < items.length) {
+          e.preventDefault();
+          items[activeDropdownIndex].click();
+        }
+      } else if (e.key === 'Escape') {
+        dropdown.classList.add('hidden');
+      }
+    }
+
+    function updateActiveDropdown(items) {
+      items.forEach((it, idx) => {
+        if (idx === activeDropdownIndex) {
+          it.classList.add('bg-blue-100/70');
+          it.scrollIntoView({ block: 'nearest' });
+        } else {
+          it.classList.remove('bg-blue-100/70');
+        }
+      });
+    }
+
+    // 바깥 영역 클릭 시 자동완성 닫기
+    document.addEventListener('click', (e) => {
+      const dropdown = document.getElementById('autocompleteDropdown');
+      const input = document.getElementById('pillName');
+      if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.classList.add('hidden');
+      }
+    });
+
+    function getTodayKey() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function checkAndAutoResetForNewDay() {
+      const todayKey = getTodayKey();
+      const lastActiveDate = localStorage.getItem(LAST_ACTIVE_DATE_KEY);
+
+      if (lastActiveDate && lastActiveDate !== todayKey) {
+        const yesterdayAllDone = pills.length > 0 && pills.every(p => p.taken);
+        history[lastActiveDate] = yesterdayAllDone;
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+
+        pills.forEach(p => {
+          p.taken = false;
+          p.takenTime = null;
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(pills));
+      }
+
+      localStorage.setItem(LAST_ACTIVE_DATE_KEY, todayKey);
+      displayDate();
+      render();
+      updateStreak();
+      if (!document.getElementById('viewCalendar').classList.contains('hidden')) {
+        renderCalendar();
+      }
+    }
+
+    function displayDate() {
+      const now = new Date();
+      const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' };
+      document.getElementById('currentDate').innerText = now.toLocaleDateString('ko-KR', options);
+      document.getElementById('targetDaysSelect').value = targetDays;
+
+      document.querySelectorAll('.condition-check').forEach(cb => {
+        cb.checked = userConditions.includes(cb.value);
+      });
+      updateSelectedConditionBadge();
+    }
+
+    function updateSelectedConditionBadge() {
+      const count = userConditions.length;
+      document.getElementById('selectedConditionCount').innerText = `${count}개 선택됨`;
+    }
+
+    function switchTab(tab) {
+      const vToday = document.getElementById('viewToday');
+      const vCal = document.getElementById('viewCalendar');
+      const vRec = document.getElementById('viewRecommend');
+      const bToday = document.getElementById('tabTodayBtn');
+      const bCal = document.getElementById('tabCalendarBtn');
+      const bRec = document.getElementById('tabRecommendBtn');
+
+      [vToday, vCal, vRec].forEach(el => el.classList.add('hidden'));
+      [bToday, bCal, bRec].forEach(b => {
+        b.className = 'flex-1 py-2 rounded-lg font-medium text-xs sm:text-sm text-slate-500 hover:text-slate-700 transition-all';
+      });
+
+      const activeClasses = 'flex-1 py-2 rounded-lg font-bold text-xs sm:text-sm transition-all bg-white text-blue-600 shadow-sm';
+
+      if (tab === 'today') {
+        vToday.classList.remove('hidden');
+        bToday.className = activeClasses;
+      } else if (tab === 'calendar') {
+        vCal.classList.remove('hidden');
+        bCal.className = activeClasses;
+        renderCalendar();
+      } else if (tab === 'recommend') {
+        vRec.classList.remove('hidden');
+        bRec.className = activeClasses;
+        renderRecommendations();
+      }
+    }
+
+    function toggleCondition(checkbox) {
+      const val = checkbox.value;
+      if (checkbox.checked) {
+        if (!userConditions.includes(val)) userConditions.push(val);
+      } else {
+        userConditions = userConditions.filter(a => a !== val);
+      }
+      localStorage.setItem(USER_CONDITIONS_KEY, JSON.stringify(userConditions));
+      updateSelectedConditionBadge();
+      renderRecommendations();
+    }
+
+    function clearAllConditions() {
+      if (userConditions.length === 0) return;
+      userConditions = [];
+      localStorage.setItem(USER_CONDITIONS_KEY, JSON.stringify(userConditions));
+      document.querySelectorAll('.condition-check').forEach(cb => {
+        cb.checked = false;
+      });
+      updateSelectedConditionBadge();
+      renderRecommendations();
+    }
+
+    function selectAgeGroup(group) {
+      currentAgeGroup = group;
+      ['teens', 'young', 'middle', 'senior'].forEach(g => {
+        const btn = document.getElementById(`ageBtn_${g}`);
+        if (g === group) {
+          btn.className = 'py-1.5 text-xs font-bold rounded-lg bg-blue-600 text-white shadow-sm';
+        } else {
+          btn.className = 'py-1.5 text-xs font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300';
+        }
+      });
+      renderRecommendations();
+    }
+
+    function handleSearchInput(val) {
+      searchQuery = val.trim().toLowerCase();
+      const clearBtn = document.getElementById('clearSearchBtn');
+      if (searchQuery.length > 0) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+      }
+      renderRecommendations();
+    }
+
+    function clearSearch() {
+      document.getElementById('recommendSearchInput').value = '';
+      document.getElementById('clearSearchBtn').classList.add('hidden');
+      searchQuery = '';
+      renderRecommendations();
+    }
+
+    function evaluateRisk(item) {
+      if (!item || !item.cautions || item.cautions.length === 0) return { level: 'none', messages: [] };
+
+      let hasForbidden = false;
+      let forbiddenMsgs = [];
+      let warnMsgs = [];
+
+      item.cautions.forEach(c => {
+        if (userConditions.includes(c.type)) {
+          if (c.level === 'forbidden') {
+            hasForbidden = true;
+            forbiddenMsgs.push(c.msg);
+          } else {
+            warnMsgs.push(c.msg);
+          }
+        }
+      });
+
+      if (hasForbidden) return { level: 'forbidden', messages: forbiddenMsgs };
+      if (warnMsgs.length > 0) return { level: 'warn', messages: warnMsgs };
+      return { level: 'none', messages: [] };
+    }
+
+    function renderRecommendations() {
+      const listContainer = document.getElementById('recommendList');
+      listContainer.innerHTML = '';
+
+      let itemsToRender = [];
+      const ageFilterSection = document.getElementById('ageFilterSection');
+      const descEl = document.getElementById('ageGroupDescription');
+
+      if (searchQuery.length > 0) {
+        ageFilterSection.classList.add('opacity-40', 'pointer-events-none');
+        descEl.innerHTML = `<span class="font-bold text-blue-600">'${searchQuery}'</span> 검색 결과:`;
+
+        const allItems = getAllDatabaseItems();
+        itemsToRender = allItems.filter(item => 
+          item.name.toLowerCase().includes(searchQuery) ||
+          item.tag.toLowerCase().includes(searchQuery) ||
+          item.desc.toLowerCase().includes(searchQuery)
+        );
+
+        if (itemsToRender.length === 0) {
+          listContainer.innerHTML = `
+            <div class="text-center py-10 text-slate-400 text-xs sm:text-sm bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <i class="fa-solid fa-magnifying-glass text-2xl mb-2 text-slate-300"></i>
+              <p>'${searchQuery}'에 대한 검색 결과가 없습니다.<br>영양제 또는 성분 명칭을 다시 확인해 보세요.</p>
+            </div>
+          `;
+          return;
+        }
+      } else {
+        ageFilterSection.classList.remove('opacity-40', 'pointer-events-none');
+        const data = RECOMMEND_DATA[currentAgeGroup];
+        descEl.innerHTML = `<span class="font-bold text-slate-700">${data.title} 정밀 가이드 (${data.items.length}종):</span> ${data.desc}`;
+        itemsToRender = data.items;
+      }
+
+      itemsToRender.forEach((item) => {
+        const isAlreadyAdded = pills.some(p => p.name === item.name);
+        const risk = evaluateRisk(item);
+
+        const card = document.createElement('div');
+        
+        let cardBg = 'bg-white border-slate-200/90 hover:border-blue-300';
+        let alertBadgeHtml = '';
+
+        if (risk.level === 'forbidden') {
+          cardBg = 'bg-rose-50/70 border-rose-300 ring-1 ring-rose-200';
+          alertBadgeHtml = `
+            <div class="mt-2 text-[11px] bg-rose-100 text-rose-800 p-2.5 rounded-xl font-bold flex items-start gap-1.5 border border-rose-200">
+              <i class="fa-solid fa-ban text-rose-600 mt-0.5"></i>
+              <div>
+                <span class="underline">복용 금지 알림:</span> ${risk.messages.join(' / ')}
+              </div>
+            </div>
+          `;
+        } else if (risk.level === 'warn') {
+          cardBg = 'bg-amber-50/50 border-amber-300';
+          alertBadgeHtml = `
+            <div class="mt-2 text-[11px] bg-amber-100/80 text-amber-900 p-2.5 rounded-xl font-semibold flex items-start gap-1.5 border border-amber-200">
+              <i class="fa-solid fa-triangle-exclamation text-amber-600 mt-0.5"></i>
+              <div>
+                <span class="font-bold">복용 주의 알림:</span> ${risk.messages.join(' / ')}
+              </div>
+            </div>
+          `;
+        }
+
+        const isBloodDonationSafe = !item.bloodDonation.includes('금지');
+        const isPregnancySafe = item.pregnancy.includes('안전') || item.pregnancy.includes('권장');
+
+        card.className = `p-4 rounded-2xl border shadow-sm transition ${cardBg}`;
+        const encodedItem = encodeURIComponent(JSON.stringify(item));
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1 flex-wrap">
+                <span class="text-[11px] px-2 py-0.5 rounded-md font-bold ${
+                  item.time === '아침' ? 'bg-amber-100 text-amber-700' :
+                  item.time === '점심' ? 'bg-orange-100 text-orange-700' :
+                  item.time === '저녁' ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'
+                }">${item.time} 복용</span>
+                <span class="text-[10px] bg-blue-50 text-blue-600 font-bold px-2 py-0.5 rounded-md border border-blue-100">${item.tag}</span>
+              </div>
+              <div class="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                ${item.name}
+                ${risk.level === 'forbidden' ? '<span class="text-[10px] bg-rose-600 text-white font-black px-1.5 py-0.5 rounded">🚫 금지</span>' : ''}
+                ${risk.level === 'warn' ? '<span class="text-[10px] bg-amber-500 text-white font-black px-1.5 py-0.5 rounded">⚠️ 주의</span>' : ''}
+              </div>
+              <div class="text-[11px] text-slate-500 mt-0.5">${item.desc}</div>
+
+              <div class="flex flex-wrap gap-1.5 mt-2 text-[10px]">
+                <span class="px-2 py-0.5 rounded-md font-bold border ${
+                  isBloodDonationSafe 
+                    ? 'bg-red-50 text-red-700 border-red-200' 
+                    : 'bg-rose-100 text-rose-800 border-rose-300'
+                }">
+                  🩸 헌혈: ${item.bloodDonation}
+                </span>
+                <span class="px-2 py-0.5 rounded-md font-bold border ${
+                  isPregnancySafe 
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                    : (item.pregnancy.includes('금기') || item.pregnancy.includes('금지') ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-amber-50 text-amber-700 border-amber-200')
+                }">
+                  🤰 임산부: ${item.pregnancy}
+                </span>
+              </div>
+            </div>
+            
+            <button onclick="handleRecommendAddByObj('${encodedItem}')" 
+                    class="shrink-0 px-3 py-2 text-xs font-bold rounded-xl transition ${
+                      isAlreadyAdded 
+                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                        : (risk.level === 'forbidden' 
+                            ? 'bg-rose-100 text-rose-700 border border-rose-300 hover:bg-rose-200' 
+                            : 'bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200')
+                    }">
+              ${isAlreadyAdded ? '<i class="fa-solid fa-check mr-0.5"></i> 추가됨' : '<i class="fa-solid fa-plus mr-0.5"></i> 추가'}
+            </button>
+          </div>
+          ${alertBadgeHtml}
+        `;
+        listContainer.appendChild(card);
+      });
+    }
+
+    function handleRecommendAddByObj(encodedStr) {
+      const item = JSON.parse(decodeURIComponent(encodedStr));
+
+      if (pills.some(p => p.name === item.name)) {
+        alert('이미 오늘 복약 목록에 추가되어 있습니다.');
+        return;
+      }
+
+      const risk = evaluateRisk(item);
+
+      if (risk.level === 'forbidden') {
+        alert(`🚫 [복용/추가 금지 경고]\n\n체크하신 건강 상태(질환/알레르기/수술/임신)에 의해 '${item.name}' 복용이 금지되어 있습니다.\n\n사유:\n${risk.messages.join('\n')}\n\n안전을 위해 복약 목록에 추가할 수 없습니다.`);
+        return;
+      }
+
+      if (risk.level === 'warn') {
+        const proceed = confirm(`⚠️ [복용 주의 알림]\n\n'${item.name}' 복용 시 주의사항이 있습니다:\n${risk.messages.join('\n')}\n\n주의사항을 숙지하셨습니까? 복약 목록에 추가하시겠습니까?`);
+        if (!proceed) return;
+      }
+
+      pills.push({
+        name: item.name,
+        time: item.time,
+        taken: false,
+        takenTime: null,
+        bloodDonation: item.bloodDonation,
+        pregnancy: item.pregnancy
+      });
+      savePills();
+      renderRecommendations();
+      alert(`'${item.name}'이(가) 오늘 복약 목록에 안전하게 등록되었습니다!`);
+    }
+
+    function savePills() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pills));
+      checkAndRecordHistory();
+      render();
+      updateStreak();
+    }
+
+    function checkAndRecordHistory() {
+      const todayKey = getTodayKey();
+      const allDone = pills.length > 0 && pills.every(p => p.taken);
+
+      const previousState = history[todayKey];
+      history[todayKey] = allDone;
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+
+      if (!previousState && allDone) {
+        const streak = calculateStreak();
+        if (streak >= targetDays) {
+          triggerCelebration(streak);
+        }
+      }
+    }
+
+    function calculateStreak() {
+      let streak = 0;
+      let checkDate = new Date();
+
+      while (true) {
+        const y = checkDate.getFullYear();
+        const m = String(checkDate.getMonth() + 1).padStart(2, '0');
+        const d = String(checkDate.getDate()).padStart(2, '0');
+        const key = `${y}-${m}-${d}`;
+
+        if (history[key]) {
+          streak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+          if (streak === 0 && key === getTodayKey()) {
+            checkDate.setDate(checkDate.getDate() - 1);
+            continue;
+          }
+          break;
+        }
+      }
+      return streak;
+    }
+
+    function updateStreak() {
+      const streak = calculateStreak();
+      document.getElementById('streakCount').innerText = streak;
+
+      const remaining = targetDays - streak;
+      const targetBadge = document.getElementById('targetBadge');
+      if (remaining <= 0) {
+        targetBadge.innerText = '목표 달성! 🏆';
+        targetBadge.className = 'text-xs font-black px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg animate-pulse';
+      } else {
+        targetBadge.innerText = `D-${remaining}`;
+        targetBadge.className = 'text-xs font-extrabold px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg';
+      }
+    }
+
+    function updateTargetDays(val) {
+      targetDays = parseInt(val);
+      localStorage.setItem(TARGET_DAYS_KEY, targetDays);
+      updateStreak();
+    }
+
+    function playClapSound() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const clapTimes = [0, 0.12, 0.25, 0.38, 0.52, 0.68, 0.85, 1.05, 1.25, 1.45];
+
+        clapTimes.forEach(delay => {
+          setTimeout(() => {
+            const bufferSize = audioCtx.sampleRate * 0.05;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 1100;
+            filter.Q.value = 2.5;
+
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+            noise.start();
+          }, delay * 1000);
+        });
+      } catch (e) {
+        console.log("Audio error:", e);
+      }
+    }
+
+    function triggerCelebration(streak) {
+      playClapSound();
+      if (typeof confetti === 'function') {
+        confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+        setTimeout(() => {
+          confetti({ particleCount: 60, angle: 60, spread: 55, origin: { x: 0 } });
+          confetti({ particleCount: 60, angle: 120, spread: 55, origin: { x: 1 } });
+        }, 300);
+      }
+      document.getElementById('congratsMessage').innerHTML = `
+        축하합니다! <strong>${streak}일 연속 복약</strong> 목표를 달성하셨습니다!<br>
+        매일 건강을 챙기는 당신의 꾸준함을 응원합니다! 👏
+      `;
+      document.getElementById('congratsModal').classList.remove('hidden');
+    }
+
+    function closeCongratsModal() {
+      document.getElementById('congratsModal').classList.add('hidden');
+    }
+
+    function render() {
+      const listEl = document.getElementById('pillList');
+      listEl.innerHTML = '';
+
+      if (pills.length === 0) {
+        listEl.innerHTML = `
+          <div class="text-center py-10 text-slate-400 text-sm">
+            <i class="fa-regular fa-clipboard text-3xl mb-2 text-slate-300"></i>
+            <p>등록된 약이나 영양제가 없습니다.<br>상단 검색창에 약 이름을 검색해 추가해 보세요!</p>
+          </div>
+        `;
+        updateProgress(0, 0);
+        return;
+      }
+
+      let completedCount = 0;
+
+      pills.forEach((pill, index) => {
+        if (pill.taken) completedCount++;
+
+        const card = document.createElement('div');
+        card.className = `p-3.5 rounded-2xl border flex items-center justify-between transition-all ${
+          pill.taken 
+            ? 'bg-emerald-50/70 border-emerald-200' 
+            : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
+        }`;
+
+        card.innerHTML = `
+          <div class="flex items-center gap-3">
+            <button onclick="toggleTake(${index})" class="w-9 h-9 rounded-full flex items-center justify-center transition ${
+              pill.taken 
+                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200' 
+                : 'border-2 border-slate-300 hover:border-blue-500 text-transparent'
+            }">
+              <i class="fa-solid fa-check text-sm ${pill.taken ? '' : 'hidden'}"></i>
+            </button>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-[11px] px-2 py-0.5 rounded-md font-bold ${
+                  pill.time === '아침' ? 'bg-amber-100 text-amber-700' :
+                  pill.time === '점심' ? 'bg-orange-100 text-orange-700' :
+                  pill.time === '저녁' ? 'bg-indigo-100 text-indigo-700' :
+                  pill.time === '취침전' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
+                }">${pill.time}</span>
+                <span class="font-semibold text-sm ${pill.taken ? 'line-through text-slate-400' : 'text-slate-800'}">
+                  ${pill.name}
+                </span>
+              </div>
+              <div class="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
+                <span>${pill.taken ? `<i class="fa-regular fa-clock text-[10px]"></i> 복용 완료 (${pill.takenTime})` : '아직 미복용'}</span>
+                ${pill.bloodDonation ? `<span class="text-[10px] text-red-500 font-bold">🩸 헌혈: ${pill.bloodDonation.slice(0, 10)}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <button onclick="deletePill(${index})" class="text-slate-300 hover:text-rose-500 p-1.5 transition">
+            <i class="fa-solid fa-trash-can text-xs"></i>
+          </button>
+        `;
+        listEl.appendChild(card);
+      });
+
+      updateProgress(completedCount, pills.length);
+    }
+
+    function updateProgress(completed, total) {
+      const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+      document.getElementById('progressText').innerText = `${completed} / ${total} 완료 (${percent}%)`;
+      document.getElementById('progressBar').style.width = `${percent}%`;
+    }
+
+    function toggleTake(index) {
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      pills[index].taken = !pills[index].taken;
+      pills[index].takenTime = pills[index].taken ? timeStr : null;
+      savePills();
+    }
+
+    function deletePill(index) {
+      pills.splice(index, 1);
+      savePills();
+    }
+
+    function resetTodayStatus(isManual = false) {
+      if (!isManual || confirm('오늘 복용 체크 상태를 초기화할까요?')) {
+        pills.forEach(p => {
+          p.taken = false;
+          p.takenTime = null;
+        });
+        savePills();
+      }
+    }
+
+    function changeMonth(delta) {
+      calendarDate.setMonth(calendarDate.getMonth() + delta);
+      renderCalendar();
+    }
+
+    function renderCalendar() {
+      const year = calendarDate.getFullYear();
+      const month = calendarDate.getMonth();
+      document.getElementById('calendarMonthYear').innerText = `${year}년 ${month + 1}월`;
+
+      const grid = document.getElementById('calendarGrid');
+      grid.innerHTML = '';
+
+      const firstDayIndex = new Date(year, month, 1).getDay();
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const todayKey = getTodayKey();
+
+      for (let i = 0; i < firstDayIndex; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'h-11';
+        grid.appendChild(emptyCell);
+      }
+
+      for (let day = 1; day <= lastDay; day++) {
+        const dStr = String(day).padStart(2, '0');
+        const mStr = String(month + 1).padStart(2, '0');
+        const fullDateKey = `${year}-${mStr}-${dStr}`;
+        const isDone = !!history[fullDateKey];
+        const isToday = fullDateKey === todayKey;
+
+        const cell = document.createElement('div');
+        cell.className = `h-12 rounded-xl flex flex-col items-center justify-center relative border transition-all text-xs font-semibold ${
+          isDone 
+            ? 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm' 
+            : 'border-slate-100 bg-slate-50/50 text-slate-700'
+        } ${isToday ? 'ring-2 ring-blue-500 font-extrabold' : ''}`;
+
+        cell.innerHTML = `
+          <span>${day}</span>
+          ${isDone ? '<span class="text-[10px] text-emerald-500 mt-0.5">💊완료</span>' : ''}
+        `;
+        grid.appendChild(cell);
+      }
+    }
+
+    // 💡 폼 제출 시 스마트 매칭 엔진 적용
+    document.getElementById('addPillForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const nameInput = document.getElementById('pillName');
+      const timeSelect = document.getElementById('pillTime');
+      const rawName = nameInput.value.trim();
+
+      if (!rawName) return;
+
+      // 1. DB에서 가장 적합한 약물/영양제 찾기
+      const matchedItem = findBestMatchedItem(rawName);
+
+      let finalName = rawName;
+      let bloodDonationInfo = '성분 확인 필요';
+      let pregnancyInfo = '전문의 상담 권장';
+
+      if (matchedItem) {
+        // 일치하는 성분이 있는 경우 해당 안전 정보 적용
+        finalName = matchedItem.name;
+        bloodDonationInfo = matchedItem.bloodDonation;
+        pregnancyInfo = matchedItem.pregnancy;
+
+        // 알레르기/금기 경고 분석
+        const risk = evaluateRisk(matchedItem);
+        if (risk.level === 'forbidden') {
+          alert(`🚫 [복용 금지 경고]\n\n체크하신 건강 상태(질환/알레르기/수술/임신)에 의해 '${matchedItem.name}' 복용이 금지되어 있습니다.\n\n사유:\n${risk.messages.join('\n')}\n\n안전을 위해 복약 목록에 추가할 수 없습니다.`);
+          return;
+        } else if (risk.level === 'warn') {
+          const proceed = confirm(`⚠️ [복용 주의 알림]\n\n'${matchedItem.name}' 복용 시 주의사항이 있습니다:\n${risk.messages.join('\n')}\n\n주의사항을 확인하셨습니까? 복약 목록에 추가하시겠습니까?`);
+          if (!proceed) return;
+        }
+      }
+
+      pills.push({
+        name: finalName,
+        time: timeSelect.value,
+        taken: false,
+        takenTime: null,
+        bloodDonation: bloodDonationInfo,
+        pregnancy: pregnancyInfo
+      });
+
+      nameInput.value = '';
+      document.getElementById('autocompleteDropdown').classList.add('hidden');
+      savePills();
+    });
+
+    // 앱 초기화
+    if (pills.length === 0) {
+      pills = [
+        { name: "엽산 & 비타민 B군 복합체", time: "아침", taken: false, takenTime: null, bloodDonation: "즉시 가능", pregnancy: "매우 권장" },
+        { name: "오메가3 (EPA/DHA)", time: "점심", taken: false, takenTime: null, bloodDonation: "즉시 가능", pregnancy: "주의" }
+      ];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pills));
+    }
+    
+    checkAndAutoResetForNewDay();
+    setInterval(checkAndAutoResetForNewDay, 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkAndAutoResetForNewDay();
+    });
+  </script>
+</body>
+</html>
